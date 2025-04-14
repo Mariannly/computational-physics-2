@@ -13,11 +13,13 @@ setup(
         'matplotlib',
         'scipy',
         'astropy',
-        'argparse' 
+        'argparse',
+        'pandas',
+        'os'
     ],
     entry_points={
         'console_scripts': [
-            'orbits=orbits:main',
+            'orbits=orbits.orbit:main',
         ],
     },
     include_package_data=True,

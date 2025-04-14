@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import pandas as pd
+import os
 from astropy.constants import c
 from astropy.constants import G
 from scipy.integrate import solve_ivp
@@ -26,7 +27,6 @@ def classical_slope(t, s, M):
     Returns:
         dsdt (list): Derivative of the state vector.
     """
-    # Implement Newtonian gravitational slope
 
     r = np.sqrt(s[0]**2 + s[1]**2)
     k = - G * M / r**3
@@ -73,6 +73,7 @@ class TwoBodySystem:
             a (float): Semi-major axis in AU.
             e (float): Eccentricity.
             M (float): Mass of the black hole in solar masses.
+            N (int): Number of orbits to simulate.
             save_map (bool): Whether to save the initial map with Schwarzschild radius circle.
         """
         self.a = a
@@ -93,12 +94,23 @@ class TwoBodySystem:
         return np.array(s0)
     
     def schwarzschild_radius(self):
+        """Compute the Schwarzschild radius of the black hole."""
         return 2 * G * self.M / c**2  # AU
 
     def orbital_period(self):
+        """Compute the orbital period of the planet."""
         return 2 * np.pi * np.sqrt(self.a**3 / (G * self.M))  # in years
 
     def save_initial_map(self):
+        """Save the initial map with Schwarzschild radius circle."""
+
+        # Get the directory of this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Go up one level and into "output"
+        output_dir = os.path.join(current_dir, "..", "analysis/outputfolder")
+        os.makedirs(output_dir, exist_ok=True)
+
         # Plot and save the initial map with Schwarzschild radius circle
         fig, ax = plt.subplots()
 
@@ -106,19 +118,19 @@ class TwoBodySystem:
         planet_marker = '\u2205'
         bh_marker = '\u2726'
         ax.text(self.s0[0], self.s0[1], planet_marker, color='orange', size=15, va='center', ha='center', clip_on=True)  # Initial position of planet
-        ax.text(0, 0, bh_marker, color='black', size=30, va='center', ha='center', clip_on=True)  # Position of black hole
+        ax.text(0, 0, bh_marker, color='black', size=20, va='center', ha='center', clip_on=True)  # Position of black hole
         circle = Circle((0, 0), self.rs, color='black', fill=False, linestyle=':', linewidth=0.9)
         ax.add_patch(circle)
 
         ax.set_aspect('equal')
-        ax.set_xlim(-self.rs * 3 , self.rs * 3 )
-        ax.set_ylim(-self.rs * 3, self.rs * 3 )
+        ax.set_xlim(-self.a * 1.2 , self.a * 1.2 )
+        ax.set_ylim(-self.a * 1.2, self.a * 1.2 )
         ax.set_title("Initial Map")
         ax.set_xlabel("x [AU]")
         ax.set_ylabel("y [AU]")
         ax.grid(color='gray', linestyle='-', linewidth=0.3)
         
-        plt.savefig("/home/mariannly/Documentos/CPII/computational-physics-2/exams/orbits/analysis/outputfolder/initial_map.png")
+        plt.savefig(os.path.join(output_dir, "initial_map_a{:.0f}_e{:.1f}_M{:-.0E}.png".format(self.a, self.e, self.M)))
         plt.close(fig)
 
 
@@ -144,7 +156,6 @@ class SimulationRunner:
     def trapezoidal_euler(self, f, y0, t_span, dt, M):
         """
         Numerical integration of the ODEs using the trapezoidal method.
-        
         Args:
             f (function): Function describing the ODEs.
             y0 (list): Initial state variables.
@@ -207,7 +218,7 @@ class SimulationRunner:
 
     def scipy_integrator(self, f, y0, t_span, dt, M):
         """
-        Numerical integration of the ODEs using SciPy's solve_ivp.
+        Numerical integration of the ODEs using SciPy's solve_ivp with RK45.
         Args:
             f (function): Function describing the ODEs.
             y0 (list): Initial state variables.
@@ -258,9 +269,7 @@ class SimulationRunner:
 
     # Run the simulation!
     def run(self):
-        """
-        Run the simulation using the selected method and slope function.
-        """
+        """Run the simulation using the selected method and slope function."""
         # slope function
         f = self.slope
         # Initial conditions
@@ -275,6 +284,14 @@ class SimulationRunner:
         # Run the chosen integrator
         t_values, y_values = self.select_method(f, y0, t_span, dt, M)
 
+        
+        # Get the directory of this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Go up one level and into "output"
+        output_dir = os.path.join(current_dir, "..", "analysis/outputfolder")
+        os.makedirs(output_dir, exist_ok=True)
+
         # Save to outputfolder/
         orbital_history = pd.DataFrame({
             "t": t_values,
@@ -283,23 +300,45 @@ class SimulationRunner:
             "vx": y_values[:, 2],
             "vy": y_values[:, 3]
         })
-        orbital_history.to_csv("/home/mariannly/Documentos/CPII/computational-physics-2/exams/orbits/analysis/outputfolder/orbit_data.csv", index=False)
-
+        # Save the data to a CSV file
+        orbital_history.to_csv(os.path.join(output_dir, "orbit_data_a{:.0f}_e{:.1f}_M{:-.0E}.csv".format(self.system.a, self.system.e, M)), index=False)
+        
 
 class OrbitalAnimator:
-    def __init__(self, system, filepath='/home/mariannly/Documentos/CPII/computational-physics-2/exams/orbits/analysis/outputfolder/orbit_data.csv'):
+    def __init__(self, system):
         """
         Initialize the animator with the path to the data file.
         Args:
-            filepath (str): Path to the data file.
+            system (TwoBodySystem): Instance of TwoBodySystem.
+        Returns:
+            Animation in gif format.
         """
-        self.filepath = filepath
+        
         self.system = system
         self.rs = system.rs
+        self.a = system.a
+        self.e = system.e
+        self.M = system.M
 
-    def create_gif(self, output_gif="orbit.gif"):
+        # Get the directory of this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Go up one level and into "output"
+        self.output_dir = os.path.join(current_dir, "..", "analysis/outputfolder")
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        # Create the filename for the data file
+        filename = "orbit_data_a{:.0f}_e{:.1f}_M{:-.0E}.csv".format(self.a, self.e, self.M)
+        
+        # Create the full path to the data file
+        self.filepath = os.path.join(self.output_dir, filename)
+
+    def create_gif(self):
         # Read history and animate
         data = pd.read_csv(self.filepath)
+
+        output_filaname = "orbit_a{:.0f}_e{:.1f}_M{:-.0E}.gif".format(self.a, self.e, self.M)
+        output_gif = os.path.join(self.output_dir, output_filaname)
 
         # Create the figure and axis
         fig, ax = plt.subplots()
@@ -307,16 +346,19 @@ class OrbitalAnimator:
         plt.rcParams['font.family'] = 'DejaVu Sans'
         planet_marker = '\u2205'
         bh_marker = '\u2726'
-        planet = ax.text([], [], planet_marker, color='orange', size=15, va='center', ha='center', clip_on=True)  # Position of planet
+
         planet_trail = ax.plot([], [], color='orange', alpha=0.5, marker='', linestyle='-')[0]  # Trajectory of planet
+        planet_velocity = ax.quiver([], [], [], [], color='green', scale=60000, width=0.002)  # Velocity vector of planet
+        planet = ax.text([], [], planet_marker, color='red', size=15, va='center', ha='center', clip_on=True)  # Position of planet
+
         ax.text(0, 0, bh_marker, color='black', size=30, va='center', ha='center', clip_on=True)  # Position of black hole
         circle = Circle((0, 0), self.rs, color='black', fill=False, linestyle=':', linewidth=0.9)
         ax.add_patch(circle)
 
         ax.set_aspect('equal')
-        ax.set_xlim(-self.rs * 3 , self.rs * 3 )
-        ax.set_ylim(-self.rs * 3, self.rs * 3 )
-        ax.set_title("Initial Map")
+        ax.set_xlim(-self.a * 1.4 , self.a * 1.4 )
+        ax.set_ylim(-self.a * 1.4 - self.a * self.e, self.a * 1.4 - self.a * self.e ) #Try to center the trajectory
+        ax.set_title("Simulation of a planet orbiting a black hole")
         ax.set_xlabel("x [AU]")
         ax.set_ylabel("y [AU]")
         ax.grid(color='gray', linestyle='-', linewidth=0.3)
@@ -325,17 +367,20 @@ class OrbitalAnimator:
         def update(frame):
             planet.set_position((data.iloc[frame]['x'], data.iloc[frame]['y']))
             planet_trail.set_data(data.iloc[:frame]['x'], data.iloc[:frame]['y'])
-            return [planet , planet_trail]
+            planet_velocity.set_offsets((data.iloc[frame]['x'], data.iloc[frame]['y']))
+            planet_velocity.set_UVC(data.iloc[frame]['vx'], data.iloc[frame]['vy'])
+            
+            return [planet , planet_trail, planet_velocity]
 
         ani = FuncAnimation(fig, update, frames=len(data), blit=True, interval=50)
         ani.save(output_gif, writer='pillow', fps=20)
-        # Close the figure
+
         plt.close(fig)
 
 
         
 
-
+# Main function to parse arguments and run the simulation
 def parse_args():
     parser = argparse.ArgumentParser(description="Two-body simulation")
     parser.add_argument("--e", type=float, required=True, help="Eccentricity")
@@ -350,18 +395,22 @@ def parse_args():
     return parser.parse_args()
 
 def main():
+    """Main function to initialize, run, and visualize the simulation."""
     args = parse_args()
     
+    # Initialize the two-body system
     system = TwoBodySystem(args.a, args.e, args.M, args.N, args.save_map)
     if args.save_map:
         system.save_initial_map()
     
+    # Run the simulation
     simulation = SimulationRunner(args.method, args.slope, args.dt, system)
     simulation.run()
 
+    # Generate the animation if requested
     if args.animate:
         animator = OrbitalAnimator(system)
-        animator.create_gif('/home/mariannly/Documentos/CPII/computational-physics-2/exams/orbits/analysis/outputfolder/orbits.gif')
+        animator.create_gif()
 
 if __name__ == "__main__":
     main()
