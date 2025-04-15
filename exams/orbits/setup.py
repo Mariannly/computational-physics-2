@@ -14,13 +14,12 @@ setup(
         'scipy',
         'astropy',
         'argparse',
-        'pandas',
-        'os'
+        'pandas'
     ],
     entry_points={
         'console_scripts': [
             'orbits=orbits.orbit:main',
-        ],
+        ], #this never worked! Don't know why
     },
     include_package_data=True,
 )

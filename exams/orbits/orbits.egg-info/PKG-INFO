@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: orbits
+Version: 0.1
+Summary: A 2D two-body simulation of a planet orbiting a blackhole with or without relativistic corrections
+Author: Mariannly Marquez
+Author-email: mariannly.marquez@yachaytech.edu.ec
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: scipy
+Requires-Dist: astropy
+Requires-Dist: argparse
+Requires-Dist: pandas
+Dynamic: author
+Dynamic: author-email
+Dynamic: requires-dist
+Dynamic: summary

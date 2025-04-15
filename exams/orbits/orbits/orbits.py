@@ -67,13 +67,15 @@ def relativistic_slope(t, s, M):
 
 # State system class
 class TwoBodySystem:
-    def __init__(self, a, e, M, N, save_map=False):
+    def __init__(self, a, e, M, N, method_name, slope_type, save_map=False):
         """Initialize the simulation with given parameters.
         Args:
             a (float): Semi-major axis in AU.
             e (float): Eccentricity.
             M (float): Mass of the black hole in solar masses.
             N (int): Number of orbits to simulate.
+            method_name (str): Integration method ('trapezoidal', 'rk3', 'scipy').
+            slope_type (str): Slope type ('classical', 'relativistic').
             save_map (bool): Whether to save the initial map with Schwarzschild radius circle.
         """
         self.a = a
@@ -84,7 +86,8 @@ class TwoBodySystem:
         self.rs = self.schwarzschild_radius()
         self.period = self.orbital_period()
         self.t_span = (0, self.period * N)
-        
+        self.method_name = method_name
+        self.slope_type = slope_type
 
     def initialize(self):
         """Compute the initial conditions for the simulation."""
@@ -130,7 +133,7 @@ class TwoBodySystem:
         ax.set_ylabel("y [AU]")
         ax.grid(color='gray', linestyle='-', linewidth=0.3)
         
-        plt.savefig(os.path.join(output_dir, "initial_map_a{:.0f}_e{:.1f}_M{:-.0E}.png".format(self.a, self.e, self.M)))
+        plt.savefig(os.path.join(output_dir, "initial_map_a{:.0f}_e{:.2f}_M{:-.0E}_{}_{}.png".format(self.a, self.e, self.M,self.method_name, self.slope_type)))
         plt.close(fig)
 
 
@@ -301,20 +304,22 @@ class SimulationRunner:
             "vy": y_values[:, 3]
         })
         # Save the data to a CSV file
-        orbital_history.to_csv(os.path.join(output_dir, "orbit_data_a{:.0f}_e{:.1f}_M{:-.0E}.csv".format(self.system.a, self.system.e, M)), index=False)
+        orbital_history.to_csv(os.path.join(output_dir, "orbit_data_a{:.0f}_e{:.2f}_M{:-.0E}_{}_{}.csv".format(self.system.a, self.system.e, M, self.method_name, self.slope_type)), index=False)
         
-
-class OrbitalAnimator:
-    def __init__(self, system):
+# Animator class
+class OrbitalAnimator(SimulationRunner):
+    def __init__(self, method_name, slope_type, dt, system):
         """
-        Initialize the animator with the path to the data file.
+        Child Class. Initialize the animator with the path to the data file.
         Args:
+            method_name (str): Integration method ('trapezoidal', 'rk3', 'scipy').
+            slope_type (str): Slope type ('classical', 'relativistic').
+            dt (float): Time step.
             system (TwoBodySystem): Instance of TwoBodySystem.
         Returns:
             Animation in gif format.
         """
-        
-        self.system = system
+        super().__init__(method_name, slope_type, dt, system)
         self.rs = system.rs
         self.a = system.a
         self.e = system.e
@@ -328,7 +333,7 @@ class OrbitalAnimator:
         os.makedirs(self.output_dir, exist_ok=True)
 
         # Create the filename for the data file
-        filename = "orbit_data_a{:.0f}_e{:.1f}_M{:-.0E}.csv".format(self.a, self.e, self.M)
+        filename = "orbit_data_a{:.0f}_e{:.2f}_M{:-.0E}_{}_{}.csv".format(self.a, self.e, self.M, self.method_name, self.slope_type)
         
         # Create the full path to the data file
         self.filepath = os.path.join(self.output_dir, filename)
@@ -337,7 +342,7 @@ class OrbitalAnimator:
         # Read history and animate
         data = pd.read_csv(self.filepath)
 
-        output_filaname = "orbit_a{:.0f}_e{:.1f}_M{:-.0E}.gif".format(self.a, self.e, self.M)
+        output_filaname = "orbit_a{:.0f}_e{:.2f}_M{:-.0E}_{}_{}.gif".format(self.a, self.e, self.M, self.method_name, self.slope_type)
         output_gif = os.path.join(self.output_dir, output_filaname)
 
         # Create the figure and axis
@@ -365,14 +370,15 @@ class OrbitalAnimator:
 
         # Create the animation
         def update(frame):
-            planet.set_position((data.iloc[frame]['x'], data.iloc[frame]['y']))
+            
             planet_trail.set_data(data.iloc[:frame]['x'], data.iloc[:frame]['y'])
             planet_velocity.set_offsets((data.iloc[frame]['x'], data.iloc[frame]['y']))
             planet_velocity.set_UVC(data.iloc[frame]['vx'], data.iloc[frame]['vy'])
+            planet.set_position((float(data.iloc[frame]['x']), float(data.iloc[frame]['y'])))
             
-            return [planet , planet_trail, planet_velocity]
+            return planet_trail, planet_velocity, planet
 
-        ani = FuncAnimation(fig, update, frames=len(data), blit=True, interval=50)
+        ani = FuncAnimation(fig, update, frames=len(data), blit=False, interval=200)
         ani.save(output_gif, writer='pillow', fps=20)
 
         plt.close(fig)
@@ -399,7 +405,7 @@ def main():
     args = parse_args()
     
     # Initialize the two-body system
-    system = TwoBodySystem(args.a, args.e, args.M, args.N, args.save_map)
+    system = TwoBodySystem(args.a, args.e, args.M, args.N, args.method, args.slope, args.save_map)
     if args.save_map:
         system.save_initial_map()
     
@@ -409,7 +415,7 @@ def main():
 
     # Generate the animation if requested
     if args.animate:
-        animator = OrbitalAnimator(system)
+        animator = OrbitalAnimator(args.method, args.slope, args.dt, system)
         animator.create_gif()
 
 if __name__ == "__main__":

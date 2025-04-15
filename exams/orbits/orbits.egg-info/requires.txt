@@ -1,0 +1,6 @@
+numpy
+matplotlib
+scipy
+astropy
+argparse
+pandas
