@@ -1,0 +1,8 @@
+Printing workloads: [10000000]
+Printing my_start:0
+Printing my_end:10000000
+Initialise a time: 0.005909
+Initialise b time: 0.865211
+Adding arrays time: 1.4919059999999997
+Averaging result time: 0.8538549999999998
+Average: 5000001.5
